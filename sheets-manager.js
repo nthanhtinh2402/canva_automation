@@ -7,11 +7,15 @@ class SheetsManager {
         this.oneMonthSheetGid = '0'; // Sheet "1 Month"
         this.oneYearSheetGid = '1996584998'; // Sheet "1 Year"
         this.isInitialized = false;
-        // Config cache (key/value from Config sheet)
+        // Config cache (key/value or column-based) from Config sheet
         this._configCache = { map: null, ts: 0 };
         this._configTtlMs = Number(process.env.CONFIG_CACHE_TTL_MS || 60000);
         this._configSheetGid = process.env.CONFIG_SHEET_GID || null; // optional
         this._configSheetTitle = process.env.CONFIG_SHEET_TITLE || 'Config';
+        // Column-based config (using specific columns in the given sheet GID)
+        this._successCol = process.env.SUCCESS_MSG_TEMPLATE_COL || null;
+        this._failCol = process.env.FAIL_MSG_TEMPLATE_COL || null;
+        this._configRowIndex = Number(process.env.CONFIG_ROW_INDEX || 1); // 1-based index
     }
 
     async initialize() {
@@ -311,13 +315,41 @@ class SheetsManager {
         return fallback;
     }
 
+
+    // Column-based getters (read directly from a specific sheet/GID and column headers)
+    async _getFromColumns() {
+        await this.ensureInitialized();
+        if (!this._configSheetGid || !this.doc.sheetsById[this._configSheetGid]) return null;
+        const sheet = this.doc.sheetsById[this._configSheetGid];
+        const rows = await sheet.getRows({ offset: this._configRowIndex - 1, limit: 1 });
+        if (!rows || !rows[0]) return null;
+        const row = rows[0];
+        const data = {};
+        if (this._successCol) data.SUCCESS_MSG_TEMPLATE = row.get(this._successCol) || null;
+        if (this._failCol) data.FAIL_MSG_TEMPLATE = row.get(this._failCol) || null;
+        return data;
+    }
+
     async getSuccessMessageTemplate(defaultTpl) {
+        // Priority: column-based → key/value sheet → default
+        try {
+            const colData = await this._getFromColumns();
+            if (colData && colData.SUCCESS_MSG_TEMPLATE) return colData.SUCCESS_MSG_TEMPLATE;
+        } catch {}
         return await this.getConfigValue('SUCCESS_MSG_TEMPLATE', defaultTpl);
     }
 
     async getFailMessageTemplate(defaultTpl) {
+        // Priority: column-based → key/value sheet → default
+        try {
+            const colData = await this._getFromColumns();
+            if (colData && colData.FAIL_MSG_TEMPLATE) return colData.FAIL_MSG_TEMPLATE;
+        } catch {}
         return await this.getConfigValue('FAIL_MSG_TEMPLATE', defaultTpl);
     }
+
+
+
 
 
     // Alias cho updateTaskStatus để tương thích
