@@ -27,6 +27,14 @@ function apiAuth(req, res, next) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
 }
 
+// Message templates (customizable via .env)
+const SUCCESS_MSG_TEMPLATE = process.env.SUCCESS_MSG_TEMPLATE || 'Đã mời thành công {email}';
+const FAIL_MSG_TEMPLATE = process.env.FAIL_MSG_TEMPLATE || 'Mời {email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)';
+function formatMessage(tpl, data) {
+    return (tpl || '').replace(/\{email\}/g, data.email || '').replace(/\{reason\}/g, data.reason || '');
+}
+
+
 let currentPage;
 let currentBrowser;
 let isInitializing = false; // Flag để tránh khởi tạo nhiều lần
@@ -287,8 +295,8 @@ queueManager.on('executeTask', async (task, callback) => {
                 const result = {
                     success: finalSuccess,
                     message: finalSuccess
-                        ? `Đã mời thành công ${task.email}`
-                        : `Mời ${task.email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)`,
+                        ? formatMessage(SUCCESS_MSG_TEMPLATE, { email: task.email })
+                        : formatMessage(FAIL_MSG_TEMPLATE, { email: task.email, reason: (inviteResult.message || (reloginSuccess ? 'Mời thất bại' : 'Login lại thất bại')) }),
                     rawError: inviteResult.message || (reloginSuccess ? 'Mời thất bại' : 'Login lại thất bại'),
                     loggedToSheets: logResult,
                     accountCountIncremented: countIncremented,
@@ -307,7 +315,7 @@ queueManager.on('executeTask', async (task, callback) => {
         } else {
             const result = {
                 success: false,
-                message: `Mời ${task.email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)`,
+                message: formatMessage(FAIL_MSG_TEMPLATE, { email: task.email, reason: inviteResult.message }),
                 rawError: inviteResult.message,
                 processingTime: `${Math.round((Date.now() - startTime) / 1000)}s`
             };
