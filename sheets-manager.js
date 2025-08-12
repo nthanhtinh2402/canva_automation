@@ -7,12 +7,17 @@ class SheetsManager {
         this.oneMonthSheetGid = '0'; // Sheet "1 Month"
         this.oneYearSheetGid = '1996584998'; // Sheet "1 Year"
         this.isInitialized = false;
+        // Config cache (key/value from Config sheet)
+        this._configCache = { map: null, ts: 0 };
+        this._configTtlMs = Number(process.env.CONFIG_CACHE_TTL_MS || 60000);
+        this._configSheetGid = process.env.CONFIG_SHEET_GID || null; // optional
+        this._configSheetTitle = process.env.CONFIG_SHEET_TITLE || 'Config';
     }
 
     async initialize() {
         try {
             console.log('Đang khởi tạo Google Sheets connection...');
-            
+
             // Khởi tạo JWT auth
             const serviceAccountAuth = new JWT({
                 email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -23,10 +28,10 @@ class SheetsManager {
             // Khởi tạo document
             this.doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
             await this.doc.loadInfo();
-            
+
             console.log(`✓ Đã kết nối Google Sheet: ${this.doc.title}`);
             this.isInitialized = true;
-            
+
             return true;
         } catch (error) {
             console.error('❌ Lỗi khởi tạo Google Sheets:', error.message);
@@ -43,16 +48,16 @@ class SheetsManager {
     async logOneMonth(email, account) {
         try {
             await this.ensureInitialized();
-            
+
             console.log(`📝 Ghi log vào hàng account: ${account.username}`);
-            
+
             const sheet = this.doc.sheetsById[this.oneMonthSheetGid];
             if (!sheet) {
                 throw new Error(`Sheet với GID ${this.oneMonthSheetGid} không tồn tại`);
             }
 
             const rows = await sheet.getRows();
-            
+
             // Tìm hàng của account hiện tại
             let accountRow = rows.find(row => {
                 const rowAccount = row.get('Account');
@@ -116,16 +121,16 @@ class SheetsManager {
     async logOneYear(email, account) {
         try {
             await this.ensureInitialized();
-            
+
             console.log(`📝 Ghi log vào hàng account: ${account.username}`);
-            
+
             const sheet = this.doc.sheetsById[this.oneYearSheetGid];
             if (!sheet) {
                 throw new Error(`Sheet với GID ${this.oneYearSheetGid} không tồn tại`);
             }
 
             const rows = await sheet.getRows();
-            
+
             // Tìm hàng của account hiện tại
             let accountRow = rows.find(row => {
                 const rowAccount = row.get('Account');
@@ -205,13 +210,13 @@ class SheetsManager {
     async getStats() {
         try {
             await this.ensureInitialized();
-            
+
             const oneMonthSheet = this.doc.sheetsById[this.oneMonthSheetGid];
             const oneYearSheet = this.doc.sheetsById[this.oneYearSheetGid];
-            
+
             const oneMonthRows = await oneMonthSheet.getRows();
             const oneYearRows = await oneYearSheet.getRows();
-            
+
             return {
                 oneMonth: {
                     totalRows: oneMonthRows.length,
@@ -264,6 +269,56 @@ class SheetsManager {
             return false;
         }
     }
+
+    // Load config (key/value) from a dedicated sheet (by title or GID)
+    async loadConfigMap(force = false) {
+        await this.ensureInitialized();
+        const now = Date.now();
+        if (!force && this._configCache.map && (now - this._configCache.ts) < this._configTtlMs) {
+            return this._configCache.map;
+        }
+
+        let sheet = null;
+        if (this._configSheetGid && this.doc.sheetsById[this._configSheetGid]) {
+            sheet = this.doc.sheetsById[this._configSheetGid];
+        } else {
+            // fallback by title
+            sheet = this.doc.sheetsByTitle[this._configSheetTitle];
+        }
+
+        if (!sheet) {
+            console.log('⚠️ Không tìm thấy sheet cấu hình (Config). Bỏ qua, sẽ dùng .env');
+            this._configCache = { map: null, ts: now };
+            return null;
+        }
+
+        const rows = await sheet.getRows();
+        const map = {};
+        for (const row of rows) {
+            const key = row.get('Key') || row.get('key') || row.get('KEY');
+            const val = row.get('Value') || row.get('value') || row.get('VAL') || row.get('VALUE');
+            if (key) map[String(key).trim()] = (val ?? '').toString();
+        }
+        this._configCache = { map, ts: now };
+        return map;
+    }
+
+    async getConfigValue(key, fallback = null) {
+        try {
+            const map = await this.loadConfigMap(false);
+            if (map && Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+        } catch {}
+        return fallback;
+    }
+
+    async getSuccessMessageTemplate(defaultTpl) {
+        return await this.getConfigValue('SUCCESS_MSG_TEMPLATE', defaultTpl);
+    }
+
+    async getFailMessageTemplate(defaultTpl) {
+        return await this.getConfigValue('FAIL_MSG_TEMPLATE', defaultTpl);
+    }
+
 
     // Alias cho updateTaskStatus để tương thích
     async updateStatus(email, duration, status = 'completed') {

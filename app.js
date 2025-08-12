@@ -27,9 +27,9 @@ function apiAuth(req, res, next) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
 }
 
-// Message templates (customizable via .env)
-const SUCCESS_MSG_TEMPLATE = process.env.SUCCESS_MSG_TEMPLATE || 'Đã mời thành công {email}';
-const FAIL_MSG_TEMPLATE = process.env.FAIL_MSG_TEMPLATE || 'Mời {email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)';
+// Message templates (customizable via .env or Google Sheets Config)
+let SUCCESS_MSG_TEMPLATE = process.env.SUCCESS_MSG_TEMPLATE || 'Đã mời thành công {email}';
+let FAIL_MSG_TEMPLATE = process.env.FAIL_MSG_TEMPLATE || 'Mời {email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)';
 function formatMessage(tpl, data) {
     return (tpl || '').replace(/\{email\}/g, data.email || '').replace(/\{reason\}/g, data.reason || '');
 }
@@ -66,6 +66,23 @@ function saveUiCache(cache) {
         fs.writeFileSync(UI_CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
     } catch {}
 }
+
+// Load dynamic message templates from Google Sheets (once at startup and refresh periodically)
+async function refreshMessageTemplates() {
+    try {
+        const sTpl = await sheetsManager.getSuccessMessageTemplate(SUCCESS_MSG_TEMPLATE);
+        const fTpl = await sheetsManager.getFailMessageTemplate(FAIL_MSG_TEMPLATE);
+        if (sTpl) SUCCESS_MSG_TEMPLATE = sTpl;
+        if (fTpl) FAIL_MSG_TEMPLATE = fTpl;
+    } catch (e) {
+        console.log('⚠️ Không thể tải template message từ Sheets, dùng .env:', e.message);
+    }
+}
+// Kick off initial load (non-blocking)
+refreshMessageTemplates();
+// Optional: refresh every 5 minutes
+setInterval(refreshMessageTemplates, Number(process.env.CONFIG_REFRESH_MS || 300000));
+
 function getCachedRegion(key) { const cache = loadUiCache(); return cache[key]; }
 function setCachedRegion(key, region) {
     const cache = loadUiCache();
