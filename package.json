@@ -1,0 +1,27 @@
+{
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon --watch . --ext js,json,env --delay 200ms app.js"
+  },
+  "dependencies": {
+    "2captcha": "^3.0.5-2",
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0",
+    "gologin": "^2.1.30",
+    "google-auth-library": "^9.15.1",
+    "google-spreadsheet": "^4.1.4",
+    "googleapis": "^150.0.1",
+    "node-fetch": "^2.7.0",
+    "node-tesseract-ocr": "^2.2.1",
+    "puppeteer": "^24.16.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-proxy": "^1.0.2",
+    "puppeteer-extra-plugin-recaptcha": "^3.6.8",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "queue": "^7.0.0",
+    "tesseract.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

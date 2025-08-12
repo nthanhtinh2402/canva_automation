@@ -1,0 +1,41 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env and secrets
+.env
+google-credentials.json
+
+# Runtime/user data
+user-data/
+*.log
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build/output
+/dist/
+/build/
+coverage/
+
+# Archives
+*.zip
+*.7z
+*.rar
+
+# Images and debug snapshots (keep only if you want to version them)
+# Uncomment next line to ignore all images
+# *.png
+# *.jpg
+# *.jpeg
+# *.gif
+
