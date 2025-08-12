@@ -200,3 +200,61 @@ Phản hồi mẫu (thất bại sau khi retry đủ lần):
 
 Nếu bạn vẫn muốn upload `.env`, hãy xác nhận lại để mình bỏ `.env` khỏi `.gitignore` và commit theo yêu cầu.
 
+
+
+---
+
+## Tùy chỉnh thông điệp (message) động qua Google Sheets (GID/cột) hoặc .env
+
+Ứng dụng cho phép bạn thay đổi thông điệp thành công/thất bại mà không cần sửa code.
+
+- Placeholders hỗ trợ:
+  - `{email}`: địa chỉ email được mời
+  - `{reason}`: lý do kỹ thuật cuối cùng (nếu có) khi thất bại
+
+Có 2 cách cấu hình (ưu tiên theo thứ tự):
+
+1) Đọc trực tiếp theo cột từ một tab (sheet) có GID chỉ định
+- Thêm 2 cột trong tab đó (header cột chuẩn xác):
+  - `SUCCESS_MSG_TEMPLATE`
+  - `FAIL_MSG_TEMPLATE`
+- Ở hàng dữ liệu bạn chọn (theo chỉ số ), điền giá trị thông điệp, ví dụ:
+  - SUCCESS_MSG_TEMPLATE = `Đã mời thành công {email}`
+  - FAIL_MSG_TEMPLATE = `Mời {email} không thành công. Lý do: {reason}`
+- Cấu hình .env:
+
+```dotenv
+CONFIG_SHEET_GID=<<GID_tab_ban_muon_doc>>
+SUCCESS_MSG_TEMPLATE_COL=SUCCESS_MSG_TEMPLATE
+FAIL_MSG_TEMPLATE_COL=FAIL_MSG_TEMPLATE
+CONFIG_ROW_INDEX=1            # hàng dữ liệu cần đọc (1-based)
+CONFIG_CACHE_TTL_MS=60000     # cache trong memory
+CONFIG_REFRESH_MS=300000      # tự refresh mỗi 5 phút
+```
+
+2) Fallback: Đọc từ sheet "Config" kiểu Key/Value (nếu bạn muốn gom cấu hình vào 1 tab)
+- Tạo tab tên `Config` (hoặc đặt ENV `CONFIG_SHEET_TITLE=...`)
+- Tạo 2 cột: `Key` | `Value`
+- Thêm các dòng:
+  - Key: `SUCCESS_MSG_TEMPLATE` | Value: `Đã mời thành công {email}`
+  - Key: `FAIL_MSG_TEMPLATE` | Value: `Mời {email} không thành công. Lý do: {reason}`
+
+3) Fallback cuối: Đọc từ .env
+
+```dotenv
+SUCCESS_MSG_TEMPLATE="Đã mời thành công {email}"
+FAIL_MSG_TEMPLATE="Mời {email} không thành công. Vui lòng thử lại sau. (Gợi ý: kiểm tra email có thể đã được mời trước đó hoặc xảy ra lỗi tạm thời từ Canva)"
+```
+
+Ghi chú
+- Ứng dụng load cấu hình lúc khởi động và tự refresh định kỳ theo `CONFIG_REFRESH_MS`.
+- Muốn áp dụng ngay: restart app, hoặc giảm tạm `CONFIG_REFRESH_MS` để test nhanh.
+
+---
+
+## Tối ưu khi GoLogin hết quota (fallback Puppeteer)
+- Nếu GoLogin hết quota hoặc không dùng:
+  - Đặt `HEADLESS_FORCE_PURE=true` để bỏ hẳn GoLogin, chạy Puppeteer trực tiếp (có/không headless tuỳ `HEADLESS`).
+- Nếu vẫn muốn dùng GoLogin headless:
+  - Kết hợp `HEADLESS=true` + `GOLOGIN_EXTRA_PARAMS="--headless=new --disable-gpu --disable-dev-shm-usage"`
+- Hệ thống có fallback human-like (click/type/scroll/navigate) cho Puppeteer khi GoLogin không khởi tạo được.
