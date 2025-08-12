@@ -635,6 +635,19 @@ async function humanClick(selector, options = {}) {
     if (currentGoLoginBrowser) {
         return await currentGoLoginBrowser.humanClick(selector, options);
     }
+    // Fallback for plain Puppeteer
+    if (page) {
+        try {
+            if (options.waitFor !== false) {
+                await page.waitForSelector(selector, { timeout: options.timeout || 5000 });
+            }
+            await page.click(selector, { delay: options.delay ?? 50, button: options.button || 'left' });
+            return true;
+        } catch (e) {
+            console.log('humanClick fallback error:', e.message);
+            return false;
+        }
+    }
     throw new Error('GoLogin browser not initialized');
 }
 
@@ -642,12 +655,39 @@ async function humanType(selector, text, options = {}) {
     if (currentGoLoginBrowser) {
         return await currentGoLoginBrowser.humanType(selector, text, options);
     }
+    // Fallback for plain Puppeteer
+    if (page) {
+        try {
+            if (options.waitFor !== false) {
+                await page.waitForSelector(selector, { timeout: options.timeout || 5000 });
+            }
+            await page.focus(selector);
+            const delay = options.delay ?? 80;
+            await page.type(selector, text, { delay });
+            return true;
+        } catch (e) {
+            console.log('humanType fallback error:', e.message);
+            return false;
+        }
+    }
     throw new Error('GoLogin browser not initialized');
 }
 
 async function humanScroll() {
     if (currentGoLoginBrowser) {
         return await currentGoLoginBrowser.humanScroll();
+    }
+    // Fallback for plain Puppeteer
+    if (page) {
+        try {
+            await page.evaluate(() => window.scrollBy(0, 400));
+            await new Promise(r => setTimeout(r, 200));
+            await page.evaluate(() => window.scrollBy(0, -200));
+            return true;
+        } catch (e) {
+            console.log('humanScroll fallback error:', e.message);
+            return false;
+        }
     }
     throw new Error('GoLogin browser not initialized');
 }
@@ -658,14 +698,14 @@ async function randomMouseMovement() {
     }
 
     // Fallback cho Puppeteer thông thường
-    if (currentBrowser && currentPage) {
+    if (browser && page) {
         try {
-            // Tạo random mouse movement đơn giản
-            const viewport = await currentPage.viewport();
+            // Tạo random mouse movement đơn giản (fallback cho Puppeteer thuần)
+            const viewport = await page.viewport();
             const x = Math.random() * (viewport.width - 100) + 50;
             const y = Math.random() * (viewport.height - 100) + 50;
 
-            await currentPage.mouse.move(x, y, { steps: 10 });
+            await page.mouse.move(x, y, { steps: 10 });
             await new Promise(resolve => setTimeout(resolve, 100));
 
             return true;
@@ -682,6 +722,21 @@ async function randomMouseMovement() {
 async function navigateWithRetry(url, maxRetries = 3) {
     if (currentGoLoginBrowser) {
         return await currentGoLoginBrowser.navigateWithRetry(url, maxRetries);
+    }
+    // Fallback for plain Puppeteer
+    if (page) {
+        let attempt = 0;
+        while (attempt < maxRetries) {
+            try {
+                await page.goto(url, { waitUntil: process.env.NAV_WAIT || 'domcontentloaded', timeout: 45000 });
+                return true;
+            } catch (e) {
+                attempt++;
+                console.log(`navigateWithRetry (plain) failed attempt ${attempt}/${maxRetries}:`, e.message);
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+        }
+        return false;
     }
     throw new Error('GoLogin browser not initialized');
 }
